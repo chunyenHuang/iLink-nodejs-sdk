@@ -6,6 +6,11 @@ const getCsrf = (data, csrfKeys, iv) => {
   const string = csrfKeys.reduce((s, key) => s + data[key], '') + iv;
   const sha1Data = crypto.createHash('sha1').update(string).digest('hex');
   const md5Data = crypto.createHash('md5').update(sha1Data).digest('hex');
+  console.log('getCsrf', {
+    string,
+    sha1Data,
+    md5Data,
+  });
   return md5Data;
 };
 
@@ -49,20 +54,23 @@ module.exports = class ILink {
 
       Object.assign(payload, {
         url: `${apiUrl}/${payload.url}`,
-        data: updatedData ? qs.stringify(updatedData) : undefined,
+        data: updatedData ? qs.stringify(updatedData, { encode: false }) : undefined,
       });
 
       console.log(payload);
       const { data } = await axios(payload);
-      return data;
+      return data.response;
     } catch (e) {
       // console.log(e);
-      const error = e.toJSON();
-      throw new Error(error.message);
+      if (e.response && e.response.data && e.response.data.message) {
+        throw new Error(e.response.data.message);
+      }
+
+      throw new Error(e.toJSON().message);
     }
   }
 
-  async makeQuote(order) {
+  async getQuote(order) {
     const payload = {
       method: 'POST',
       url: 'orders/quotation',
@@ -70,16 +78,24 @@ module.exports = class ILink {
       headers: await this.getApiHeaders(),
     };
 
-    return this.request(payload, { csrfKeys: ['original_area', 'dest_area'] });
+    return this.request(payload, { csrfKeys: ['origin_area', 'dest_area'] });
   }
 
   async listOrders(yyyymm, page = 1, perPage = 20) {
-    const payload = {
-      method: 'GET',
-      url: `bills/list/${yyyymm}?page=${page}&per_page=${perPage}`,
-      headers: await this.getApiHeaders(),
-    };
+    try {
+      const payload = {
+        method: 'GET',
+        url: `bills/list/${yyyymm}?page=${page}&per_page=${perPage}`,
+        headers: await this.getApiHeaders(),
+      };
+      const res = await this.request(payload);
+      return res;
+    } catch (e) {
+      if (e.message === '查無資料!') {
+        return [];
+      }
 
-    return this.request(payload);
+      throw new Error(e.message);
+    }
   }
 };
