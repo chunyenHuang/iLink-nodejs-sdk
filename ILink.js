@@ -2,15 +2,11 @@ const axios = require('axios');
 const qs = require('qs');
 const crypto = require('crypto');
 
-const getCsrf = (data, csrfKeys, iv) => {
-  const string = csrfKeys.reduce((s, key) => s + data[key], '') + iv;
+const getCsrf = (data = {}, csrfValues = [], csrfKeys = [], iv = '') => {
+  const string = csrfValues.join('') + csrfKeys.reduce((s, key) => s + data[key], '') + iv;
   const sha1Data = crypto.createHash('sha1').update(string).digest('hex');
   const md5Data = crypto.createHash('md5').update(sha1Data).digest('hex');
-  console.log('getCsrf', {
-    string,
-    sha1Data,
-    md5Data,
-  });
+  // console.log('getCsrf', { string, sha1Data, md5Data });
   return md5Data;
 };
 
@@ -24,6 +20,7 @@ module.exports = class ILink {
   }) {
     this.env = env;
     this.apiUrl = env === 'sandbox' ? 'https://runerrandstest.global-business.com.tw:44380/api/third/v1' : 'https://runerrands.global-business.com.tw/api/third/v1';
+    this.checkApiUrl = env === 'sandbox' ? 'https://thirdpartytest.global-business.com.tw/EDI/WebService.asmx/Get_Requests_Status' : 'https://thirdparty.global-business.com.tw/EDI/WebService.asmx/Get_Requests_Status';
     this.clientId = clientId;
     this.storeCode = storeCode;
     this.appKey = appKey;
@@ -41,19 +38,18 @@ module.exports = class ILink {
 
   async request(payload, options = {}) {
     try {
-      const { apiUrl, storeCode, iv } = this;
+      const { storeCode, iv } = this;
 
       let updatedData;
       if (payload.data) {
-        updatedData = Object.assign(payload.data, {
+        updatedData = (options.csrfValues || options.csrfKeys) ? Object.assign(payload.data, {
           store_code: storeCode,
-          csrf: getCsrf(payload.data, options.csrfKeys, iv),
-        });
+          csrf: getCsrf(payload.data, options.csrfValues, options.csrfKeys, iv),
+        }) : payload.data;
         console.log(updatedData);
       }
 
       Object.assign(payload, {
-        url: `${apiUrl}/${payload.url}`,
         data: updatedData ? qs.stringify(updatedData, { encode: false }) : undefined,
       });
 
@@ -61,7 +57,7 @@ module.exports = class ILink {
       const { data } = await axios(payload);
       return data.response;
     } catch (e) {
-      // console.log(e);
+      console.log(e);
       if (e.response && e.response.data && e.response.data.message) {
         throw new Error(e.response.data.message);
       }
@@ -71,9 +67,10 @@ module.exports = class ILink {
   }
 
   async getQuote(order) {
+    const { apiUrl } = this;
     const payload = {
       method: 'POST',
-      url: 'orders/quotation',
+      url: `${apiUrl}/orders/quotation`,
       data: order,
       headers: await this.getApiHeaders(),
     };
@@ -81,11 +78,51 @@ module.exports = class ILink {
     return this.request(payload, { csrfKeys: ['origin_area', 'dest_area'] });
   }
 
-  async listOrders(yyyymm, page = 1, perPage = 20) {
+  async submitOrder(quoteId, order) {
+    const { apiUrl } = this;
+    const payload = {
+      method: 'PUT',
+      url: `${apiUrl}/orders/quotation/${quoteId}/confirm`,
+      data: order,
+      headers: await this.getApiHeaders(),
+    };
+
+    return this.request(payload, { csrfValues: [quoteId] });
+  }
+
+  async checkOrderStatus(requestId, type = 0) {
+    const { checkApiUrl } = this;
+    const payload = {
+      method: 'POST',
+      url: `${checkApiUrl}`,
+      data: {
+        scancode: '',
+        Request_id: requestId,
+        type, // 0:最新 1:歷程狀態
+      },
+      headers: await this.getApiHeaders(),
+    };
+
+    return this.request(payload);
+  }
+
+  async getBill(requestId) {
+    const { apiUrl } = this;
+    const payload = {
+      method: 'GET',
+      url: `${apiUrl}/bills/${requestId}`,
+      headers: await this.getApiHeaders(),
+    };
+
+    return this.request(payload);
+  }
+
+  async listBills(yyyymm, page = 1, perPage = 20) {
     try {
+      const { apiUrl } = this;
       const payload = {
         method: 'GET',
-        url: `bills/list/${yyyymm}?page=${page}&per_page=${perPage}`,
+        url: `${apiUrl}/bills/list/${yyyymm}?page=${page}&per_page=${perPage}`,
         headers: await this.getApiHeaders(),
       };
       const res = await this.request(payload);
