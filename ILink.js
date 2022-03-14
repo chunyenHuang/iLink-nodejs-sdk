@@ -20,7 +20,7 @@ module.exports = class ILink {
   }) {
     this.env = env;
     this.apiUrl = env === 'sandbox' ? 'https://runerrandstest.global-business.com.tw:44380/api/third/v1' : 'https://runerrands.global-business.com.tw/api/third/v1';
-    this.checkApiUrl = env === 'sandbox' ? 'https://thirdpartytest.global-business.com.tw/EDI/WebService.asmx/Get_Requests_Status' : 'https://thirdparty.global-business.com.tw/EDI/WebService.asmx/Get_Requests_Status';
+    this.statusApiUrl = env === 'sandbox' ? 'https://thirdpartytest.global-business.com.tw/EDI/WebService.asmx' : 'https://thirdparty.global-business.com.tw/EDI/WebService.asmx';
     this.clientId = clientId;
     this.storeCode = storeCode;
     this.appKey = appKey;
@@ -46,14 +46,14 @@ module.exports = class ILink {
           store_code: storeCode,
           csrf: getCsrf(payload.data, options.csrfValues, options.csrfKeys, iv),
         }) : payload.data;
-        console.log(updatedData);
+        // console.log(updatedData);
       }
 
       Object.assign(payload, {
         data: updatedData ? qs.stringify(updatedData, { encode: false }) : undefined,
       });
 
-      console.log(payload);
+      // console.log(payload);
       const { data } = await axios(payload);
       return data.response;
     } catch (e) {
@@ -90,11 +90,27 @@ module.exports = class ILink {
     return this.request(payload, { csrfValues: [quoteId] });
   }
 
-  async checkOrderStatus(requestId, type = 0) {
-    const { checkApiUrl } = this;
+  // 已取件、配送中、已送達不允許取消
+  async cancelOrder(requestId, customerCancelCode) {
+    const { statusApiUrl } = this;
     const payload = {
       method: 'POST',
-      url: `${checkApiUrl}`,
+      url: `${statusApiUrl}/REQUESTS_ID_CANCEL`,
+      data: {
+        request_id: requestId,
+        customer_code: customerCancelCode,
+      },
+      headers: await this.getApiHeaders(),
+    };
+
+    return this.request(payload);
+  }
+
+  async checkOrderStatus(requestId, type = 0) {
+    const { statusApiUrl } = this;
+    const payload = {
+      method: 'POST',
+      url: `${statusApiUrl}/Get_Requests_Status`,
       data: {
         scancode: '',
         Request_id: requestId,
