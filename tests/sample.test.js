@@ -75,6 +75,20 @@ describe('I-Link', () => {
 
     const orderStatusData = await iLink.checkOrderStatus(orderId, 0);
     console.log('orderStatusData', orderStatusData);
+    // {
+    //   "success": true,
+    //   "data": [
+    //       {
+    //           "Type": "確認叫件",
+    //           "Type_Code": "A00",
+    //           "Time": "2022-03-07 15:42:39",
+    //           "Salesrep_Code": "",
+    //           "Salesrep_Phone": "",
+    //           "Question_type": "",
+    //           "Question_Memo": ""
+    //       }
+    //   ]
+    // }
 
     const orderStatusHistoryData = await iLink.checkOrderStatus(orderId, 1);
     console.log('orderStatusHistoryData', orderStatusHistoryData);

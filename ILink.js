@@ -17,6 +17,7 @@ module.exports = class ILink {
     storeCode, // 客戶代碼
     appKey,
     iv,
+    debug = false,
   }) {
     this.env = env;
     this.apiUrl = env === 'sandbox' ? 'https://runerrandstest.global-business.com.tw:44380/api/third/v1' : 'https://runerrands.global-business.com.tw/api/third/v1';
@@ -25,6 +26,7 @@ module.exports = class ILink {
     this.storeCode = storeCode;
     this.appKey = appKey;
     this.iv = iv;
+    this.debug = debug;
   }
 
   async getApiHeaders() {
@@ -37,9 +39,9 @@ module.exports = class ILink {
   }
 
   async request(payload, options = {}) {
-    try {
-      const { storeCode, iv } = this;
+    const { storeCode, iv, debug } = this;
 
+    try {
       let updatedData;
       if (payload.data) {
         updatedData = (options.csrfValues || options.csrfKeys) ? Object.assign(payload.data, {
@@ -57,7 +59,9 @@ module.exports = class ILink {
       const { data } = await axios(payload);
       return data.response;
     } catch (e) {
-      console.log(e);
+      if (debug) {
+        console.log(e);
+      }
       if (e.response && e.response.data && e.response.data.message) {
         throw new Error(e.response.data.message);
       }
